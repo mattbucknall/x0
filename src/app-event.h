@@ -69,7 +69,7 @@ int64_t app_event_clock(void);
  * 
  * @param events    Bitwise-OR of event flags indicating events to monitor file descriptor for.
  * 
- * @param callback  Callback function to invoke when one of more specified events occur.
+ * @param callback  Callback function to invoke when one or more specified events occur.
  * 
  * @param user_data Opaque pointer to pass to callback.
  * 
@@ -111,6 +111,6 @@ void app_event_unregister_timer(app_event_id_t id);
 /**
  * Optionally waits for, then processes any pending events and returns.
  * 
- * @param block     If true, waits for events if none are pending.
+ * @param block     If true, blocks whilst no events are pending.
  */
 void app_event_poll(bool block);
