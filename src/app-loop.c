@@ -24,12 +24,11 @@
 #include <sys/signalfd.h>
 #include <unistd.h>
 
-#include "app-abort.h"
 #include "app-event.h"
 #include "app-log.h"
 #include "app-loop.h"
 
-static volatile int m_result;
+static volatile app_result_t m_result;
 static volatile bool m_run_flag;
 
 
@@ -38,11 +37,11 @@ static void sig_callback(uint32_t events, void* user_data) {
     (void) user_data;
 
     // cause main loop to stop
-    app_loop_stop(EXIT_SUCCESS);
+    app_loop_stop(APP_RESULT_OK);
 }
 
 
-int app_loop_run(void) {
+app_result_t app_loop_run(void) {
     int sig_fd;
     sigset_t sig_set;
     app_event_id_t sig_id;
@@ -52,13 +51,13 @@ int app_loop_run(void) {
     sigaddset(&sig_set, SIGINT);
     sigaddset(&sig_set, SIGTERM);
     sigaddset(&sig_set, SIGQUIT);
-    
+
     sigprocmask(SIG_BLOCK, &sig_set, NULL);
     sig_fd = signalfd(-1, &sig_set, SFD_CLOEXEC);
 
     if ( sig_fd < 0 ) {
         app_log_error("Unable to create signal fd: %s", strerror(errno));
-        app_abort(APP_ABORT_REASON_UNHANDLED_ERROR, 0); // no return
+        abort(); // no return
     }
 
     // register IO handler for signal fd
@@ -83,7 +82,7 @@ int app_loop_run(void) {
 }
 
 
-void app_loop_stop(int result) {
+void app_loop_stop(app_result_t result) {
     // set result code
     m_result = result;
     __sync_synchronize();

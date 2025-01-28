@@ -23,18 +23,20 @@
 
 #include <stdbool.h>
 
+#include "app-result.h"
+
 
 /**
  * Starts application main loop. Blocks until app_loop_stop() is called or an error occurs.
- * 
+ *
  * @return  Result passed to `app_loop_stop`.
  */
-int app_loop_run(void);
+app_result_t app_loop_run(void);
 
 
 /**
  * Stops application main loop.
- * 
+ *
  * @return  Result for `app_loop_run` to return.
  */
-void app_loop_stop(int result);
+void app_loop_stop(app_result_t result);

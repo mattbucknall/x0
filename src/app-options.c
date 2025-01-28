@@ -19,8 +19,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 
-#include "app-abort.h"
 #include "app-assert.h"
 #include "app-heap.h"
 #include "app-net-utils.h"
@@ -191,7 +191,7 @@ static void parse_bind_address_operand(char flag, struct sockaddr_in* dest, cons
     APP_ASSERT(dest);
     APP_ASSERT(arg);
 
-    if ( !app_net_utils_str_to_addr(dest, arg, "127.0.0.1") ) {
+    if ( app_net_utils_str_to_addr(dest, arg, "127.0.0.1") != APP_RESULT_OK ) {
         fprintf(stderr, "-%c: Invalid address:port\n", flag);
         print_bad_arg_advice(); // no return
     }
@@ -233,7 +233,7 @@ void app_options_init(int argc, char* argv[]) {
 
     // register cleanup function
     if ( atexit(cleanup) < 0 ) {
-        app_abort(APP_ABORT_REASON_ATEXIT_FAILED, __LINE__); // no return
+        abort(); // no return
     }
 
     // set executable name

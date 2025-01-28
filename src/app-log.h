@@ -37,6 +37,14 @@ typedef enum {
 
 
 /**
+ * Initialises logging module.
+ *
+ * @param priroity      Minimum log priority.
+ */
+void app_log_init(app_log_priority_t priority);
+
+
+/**
  * Provides representative string for given log priority.
 
  * @param priority  Log priority.
@@ -44,17 +52,6 @@ typedef enum {
  * @return  String representation of log priority.
  */
 const char* app_log_priority_to_string(app_log_priority_t priority);
-
-
-/**
- * Sets minimum log priority. Any messages logged with a priority less than that last passed to this function will be
- * discarded. Default minimum priority is APP_LOG_PRIORITY_DETAIL.
- *
- * @param priroity      Minimum log priority.
- *
- * @return  Previous log priority.
- */
-app_log_priority_t app_log_set_min_priority(app_log_priority_t priority);
 
 
 /**

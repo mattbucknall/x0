@@ -18,10 +18,11 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 
-#include "app-abort.h"
 #include "app-assert.h"
 #include "app-log.h"
+#include "app-version.h"
 
 
 static app_log_priority_t m_min_priority;
@@ -45,14 +46,8 @@ const char* app_log_priority_to_string(app_log_priority_t priority) {
         return "fatal";
 
     default:
-        app_abort(APP_ABORT_REASON_ILLEGAL_BRANCH, __LINE__); // no return
+        abort(); // no return
     }
-}
-
-
-app_log_priority_t app_log_set_min_priority(app_log_priority_t priority) {
-    APP_ASSERT(priority >= APP_LOG_PRIORITY_DETAIL && priority <= APP_LOG_PRIORITY_FATAL);
-    m_min_priority = priority;
 }
 
 
@@ -140,4 +135,26 @@ void app_log_fatal(const char* format, ...) {
     va_start(args, format);
     app_log_report_v(APP_LOG_PRIORITY_FATAL, format, args);
     va_end(args);
+}
+
+
+static void cleanup(void) {
+    // log termination message
+    app_log_info("Terminating");
+}
+
+
+void app_log_init(app_log_priority_t priority) {
+    APP_ASSERT(priority >= APP_LOG_PRIORITY_DETAIL && priority <= APP_LOG_PRIORITY_FATAL);
+
+    // register cleanup function
+    if ( atexit(cleanup) != 0 ) {
+        abort(); // no return
+    }
+
+    // set minimum log priority
+    m_min_priority = priority;
+
+    // log version info
+    app_log_info("x0 RV32IM Simulator - v" APP_VERSION_STR);
 }

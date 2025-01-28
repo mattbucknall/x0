@@ -19,34 +19,23 @@
 
 #include <stdlib.h>
 
-#include "app-assert.h"
-#include "app-event.h"
-#include "app-log.h"
-#include "app-loop.h"
-#include "app-options.h"
-#include "app-version.h"
+ #include "app-event.h"
+ #include "app-log.h"
+ #include "app-loop.h"
+ #include "app-options.h"
+ #include "app-result.h"
 
 
-int main(int argc, char* argv[]) {
-    int exit_code = EXIT_FAILURE;
-
-    // set runtime options using command-line arguments
+ int main(int argc, char* argv[]) {
+    // parse command-line options
     app_options_init(argc, argv); // may terminate
 
-    // set minimum log priority
-    app_log_set_min_priority(app_options_min_log_priority());
-
-    // log start-up message
-    app_log_info("x0 RV32IM Simulator - v" APP_VERSION_STR);
+    // initialise log module
+    app_log_init(app_options_min_log_priority());
 
     // initialise event module
     app_event_init();
 
-    // enter main loop
-    exit_code = app_loop_run();
-
-    // log shutdown message
-    app_log_info("Terminating");
-
-    return exit_code;
+    // start main loop
+    return (app_loop_run() == APP_RESULT_OK) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

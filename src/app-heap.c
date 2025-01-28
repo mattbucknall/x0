@@ -19,7 +19,6 @@
 
 #include <stdlib.h>
 
-#include "app-abort.h"
 #include "app-heap.h"
 
 
@@ -27,7 +26,7 @@ void* app_heap_alloc(size_t size) {
     void* ptr = malloc(size);
 
     if ( !ptr ) {
-        app_abort(APP_ABORT_REASON_OUT_OF_MEMORY, (uintptr_t) size); // no return
+        abort(); // no return
     }
 
     return ptr;
@@ -38,7 +37,7 @@ void* app_heap_realloc(void* ptr, size_t size) {
     void* new_ptr = realloc(ptr, size);
 
     if ( !new_ptr ) {
-        app_abort(APP_ABORT_REASON_OUT_OF_MEMORY, (uintptr_t) size); // no return
+        abort(); // no return
     }
 
     return new_ptr;

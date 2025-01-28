@@ -17,7 +17,6 @@
 
 # define 'x0' executable
 add_executable(x0
-        app-abort.c
         app-event.c
         app-heap.c
         app-log.c

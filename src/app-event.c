@@ -25,7 +25,6 @@
 #include <string.h>
 #include <time.h>
 
-#include "app-abort.h"
 #include "app-assert.h"
 #include "app-event.h"
 #include "app-heap.h"
@@ -74,7 +73,7 @@ app_event_id_t app_event_register_io(int fd, uint32_t events, app_event_callback
 
     // ensure there is space for new IO record and pfd in their respective lists
     if ( m_io_record_count == m_io_record_capacity ) {
-        m_io_record_capacity = (m_io_record_capacity > 0) ? (m_io_record_capacity * 2) : 16;
+        m_io_record_capacity *= 2;
         m_io_records = app_heap_realloc(m_io_records, m_io_record_capacity * sizeof(app_event_io_t));
         m_io_pfds = app_heap_realloc(m_io_pfds, m_io_record_capacity * sizeof(struct pollfd));
     }
@@ -128,7 +127,7 @@ app_event_id_t app_event_register_timer(int64_t period, app_event_callback_t cal
 
     // ensure there is space for new timer record in list
     if ( m_timer_record_count == m_timer_record_capacity ) {
-        m_timer_record_capacity = (m_timer_record_capacity > 0) ? (m_timer_record_capacity * 2) : 16;
+        m_timer_record_capacity *= 2;
         m_timer_records = app_heap_realloc(m_timer_records, m_timer_record_capacity * sizeof(app_event_timer_t));
     }
 
@@ -220,7 +219,7 @@ void app_event_poll(bool block) {
     // check for poll errors
     if ( poll_result < 0 ) {
         app_log_fatal("Event polling error: %s", strerror(errno));
-        app_abort(APP_ABORT_REASON_UNHANDLED_ERROR, 0);
+        abort();
     }
 
     // dispatch triggered IO event handlers
@@ -265,8 +264,17 @@ static void cleanup(void) {
 
 
 void app_event_init(void) {
+    // allocate initial IO record and pfd lists
+    m_io_record_capacity = 16;
+    m_io_records = app_heap_alloc(m_io_record_capacity * sizeof(app_event_io_t));
+    m_io_pfds = app_heap_alloc(m_io_record_capacity * sizeof(struct pollfd));
+
+    // allocate initial timer record list
+    m_timer_record_capacity = 16;
+    m_timer_records = app_heap_alloc(m_timer_record_capacity * sizeof(app_event_timer_t));
+
     // register cleanup function
-    if ( atexit(cleanup) < 0 ) {
-        app_abort(APP_ABORT_REASON_ATEXIT_FAILED, __LINE__); // no return
+    if ( atexit(cleanup) != 0 ) {
+        abort(); // no return
     }
 }

@@ -42,9 +42,9 @@ typedef uint64_t app_event_id_t;
 
 /**
  * Callback type invoked when an event occurs.
- * 
+ *
  * @param event     Bitwise-OR of event flags indicating reason for invoking callback. Will be zero for timer events.
- * 
+ *
  * @param user_data Opaque pointer passed to handler registration function.
  */
 typedef void (*app_event_callback_t) (uint32_t events, void* user_data);
@@ -56,7 +56,7 @@ typedef void (*app_event_callback_t) (uint32_t events, void* user_data);
 void app_event_init(void);
 
 
-/** 
+/**
  * @return      Event system monotonic clock time in milliseconds since epoch.
  */
 int64_t app_event_clock(void);
@@ -64,15 +64,15 @@ int64_t app_event_clock(void);
 
 /**
  * Registers an I/O event handler.
- * 
+ *
  * @param fd        File descriptor to monitor for events.
- * 
+ *
  * @param events    Bitwise-OR of event flags indicating events to monitor file descriptor for.
- * 
+ *
  * @param callback  Callback function to invoke when one or more specified events occur.
- * 
+ *
  * @param user_data Opaque pointer to pass to callback.
- * 
+ *
  * @return  Event handler ID.
  */
 app_event_id_t app_event_register_io(int fd, uint32_t events, app_event_callback_t callback, void* user_data);
@@ -80,7 +80,7 @@ app_event_id_t app_event_register_io(int fd, uint32_t events, app_event_callback
 
 /**
  * Unregisters an I/O event handler, preventing it from being invoked. Does nothing if given ID is invalid/expended.
- * 
+ *
  * @param id    Event handler ID.
  */
 void app_event_unregister_io(app_event_id_t id);
@@ -88,13 +88,13 @@ void app_event_unregister_io(app_event_id_t id);
 
 /**
  * Registers a timer event handler.
- * 
+ *
  * @param period    Period to wait before invoking event handler.
- * 
+ *
  * @param callback  Callback function to invoke when time period has expired.
- * 
+ *
  * @param user_data Opaque pointer to pass to callback.
- * 
+ *
  * @return  Event handler ID.
  */
 app_event_id_t app_event_register_timer(int64_t period, app_event_callback_t callback, void* user_data);
@@ -102,7 +102,7 @@ app_event_id_t app_event_register_timer(int64_t period, app_event_callback_t cal
 
 /**
  * Unregisters a timer event handler, preventing it from being invoked. Does nothing if given ID is invalid/expended.
- * 
+ *
  * @param id    Event handler ID.
  */
 void app_event_unregister_timer(app_event_id_t id);
@@ -110,7 +110,7 @@ void app_event_unregister_timer(app_event_id_t id);
 
 /**
  * Optionally waits for, then processes any pending events and returns.
- * 
+ *
  * @param block     If true, blocks whilst no events are pending.
  */
 void app_event_poll(bool block);

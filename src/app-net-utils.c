@@ -27,7 +27,7 @@
 #include "app-net-utils.h"
 
 
-bool app_net_utils_str_to_addr(struct sockaddr_in* addr, const char* str, const char* default_address) {
+app_result_t app_net_utils_str_to_addr(struct sockaddr_in* addr, const char* str, const char* default_address) {
     APP_ASSERT(addr);
     APP_ASSERT(str);
 
@@ -52,7 +52,7 @@ bool app_net_utils_str_to_addr(struct sockaddr_in* addr, const char* str, const 
         if ( default_address ) {
             address = default_address;
         } else {
-            return false;
+            return APP_RESULT_INVALID_ARG;
         }
     }
 
@@ -61,7 +61,7 @@ bool app_net_utils_str_to_addr(struct sockaddr_in* addr, const char* str, const 
     int port = strtol(port_str, &endptr, 10);
 
     if (*endptr != '\0' || port < 1 || port > 65535) {
-        return false;
+        return APP_RESULT_INVALID_ARG;
     }
 
     // resolve the address (handle hostname or IP address)
@@ -70,7 +70,7 @@ bool app_net_utils_str_to_addr(struct sockaddr_in* addr, const char* str, const 
     if (inet_pton(AF_INET, address, &ip_addr) <= 0) {
         struct hostent *host = gethostbyname(address);
         if (!host) {
-            return false;
+            return APP_RESULT_INVALID_ARG;
         }
 
         ip_addr = *(struct in_addr *)host->h_addr;
@@ -82,5 +82,5 @@ bool app_net_utils_str_to_addr(struct sockaddr_in* addr, const char* str, const 
     addr->sin_port = htons(port);
     addr->sin_addr = ip_addr;
 
-    return true;
+    return APP_RESULT_OK;
 }

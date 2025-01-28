@@ -1,3 +1,5 @@
+/// @file app-result.h
+
 /*
  * x0 - A lightweight RISC-V (RV32IM) simulator with GDB and Lua integration.
  *
@@ -17,48 +19,13 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "app-abort.h"
-#include "app-log.h"
+#pragma once
 
 
-const char *app_abort_reason_to_string(const app_abort_reason_t reason) {
-    switch (reason) {
-    case APP_ABORT_REASON_ASSERTION_FAILURE:
-        return "assertion failure";
-
-    case APP_ABORT_REASON_TYPE_MISMATCH:
-        return "type mismatch";
-
-    case APP_ABORT_REASON_ILLEGAL_BRANCH:
-        return "illegal branch";
-
-    case APP_ABORT_REASON_OUT_OF_MEMORY:
-        return "out of memory";
-
-    case APP_ABORT_REASON_ATEXIT_FAILED:
-        return "atexit failed";
-
-    case APP_ABORT_REASON_LUA_PANIC:
-        return "lua panic";
-
-    case APP_ABORT_REASON_UNHANDLED_ERROR:
-        return "unhandled error";
-
-    default:
-        return "undefined abort reason code";
-    }
-}
-
-
-noreturn void app_abort(app_abort_reason_t reason, uintptr_t metadata) {
-    // dump abort reason and metadata
-    app_log_fatal("ABORTED: %u: %s, %lu (0x%lx)",
-                  reason, app_abort_reason_to_string(reason),
-                  metadata, metadata
-    );
-
-    abort(); // no return
-}
+/**
+ * Enumeration of result codes.
+ */
+typedef enum {
+    APP_RESULT_OK,
+    APP_RESULT_INVALID_ARG
+} app_result_t;

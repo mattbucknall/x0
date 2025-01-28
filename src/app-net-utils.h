@@ -26,6 +26,8 @@
 
 #include <netinet/in.h>
 
+#include "app-result.h"
+
 
 /**
  * Initialises a struct sockaddr_in instance using input string in form '[ADDRESS:]PORT', where ADDRESS is optional if
@@ -37,6 +39,6 @@
  *
  * @param default_address   Default address to use if not specified in str. If NULL, address is not optional in str.
  *
- * @return  true if successful, false if input string is invalid.
+ * @return  APP_RESULT_OK if successful, APP_RESULT_INVALID_ARG if input string is invalid.
  */
-bool app_net_utils_str_to_addr(struct sockaddr_in* addr, const char* str, const char* default_address);
+app_result_t app_net_utils_str_to_addr(struct sockaddr_in* addr, const char* str, const char* default_address);

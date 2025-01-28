@@ -21,7 +21,7 @@
 
 #pragma once
 
-#include "app-abort.h"
+#include <stdlib.h>
 
 
 /**
@@ -40,8 +40,7 @@
 #ifdef NDEBUG
 #define APP_DETAIL_ASSERT(expr)             do {} while(0)
 #else
-#define APP_DETAIL_ASSERT(expr)             do { if (!(expr)) { \
-                                                app_abort(APP_ABORT_REASON_ASSERTION_FAILURE, __LINE__); }} while(0)
+#define APP_DETAIL_ASSERT(expr)             do { if (!(expr)) { abort(); } } while(0)
 #endif
 
 /// @endcond
