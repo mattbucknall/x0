@@ -41,13 +41,21 @@ typedef uint64_t app_event_id_t;
 
 
 /**
- * Callback type invoked when an event occurs.
+ * Callback type invoked when an IO event occurs.
  *
- * @param event     Bitwise-OR of event flags indicating reason for invoking callback. Will be zero for timer events.
+ * @param event     Bitwise-OR of event flags indicating reason for invoking callback.
  *
- * @param user_data Opaque pointer passed to handler registration function.
+ * @param user_data Opaque pointer passed to app_event_register_io.
  */
-typedef void (*app_event_callback_t) (uint32_t events, void* user_data);
+typedef void (*app_event_io_callback_t) (uint32_t events, void* user_data);
+
+
+/**
+ * Callback type invoked when a timer event occurs.
+ *
+ * @param user_data Opaque pointer passed to app_event_register_timer.
+ */
+typedef void (*app_event_timer_callback_t) (void* user_data);
 
 
 /**
@@ -75,7 +83,7 @@ int64_t app_event_clock(void);
  *
  * @return  Event handler ID.
  */
-app_event_id_t app_event_register_io(int fd, uint32_t events, app_event_callback_t callback, void* user_data);
+app_event_id_t app_event_register_io(int fd, uint32_t events, app_event_io_callback_t callback, void* user_data);
 
 
 /**
@@ -97,7 +105,7 @@ void app_event_unregister_io(app_event_id_t id);
  *
  * @return  Event handler ID.
  */
-app_event_id_t app_event_register_timer(int64_t period, app_event_callback_t callback, void* user_data);
+app_event_id_t app_event_register_timer(int64_t period, app_event_timer_callback_t callback, void* user_data);
 
 
 /**

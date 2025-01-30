@@ -1,4 +1,4 @@
-/// @file app-result.h
+/// @file app-timeout.h
 
 /*
  * x0 - A lightweight RISC-V (RV32IM) simulator with GDB and Lua integration.
@@ -19,17 +19,40 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#pragma once
+#include <stdint.h>
 
 
 /**
- * Enumeration of result codes.
+ * Opaque structure representing a timeout period.
  */
-typedef enum {
-    APP_RESULT_OK,
-    APP_RESULT_INVALID_ARG,
-    APP_RESULT_TIMEOUT,
-    APP_RESULT_IO_ERROR,
-    APP_RESULT_HUP,
-    APP_RESULT_CANNOT_BIND_SERVICE
-} app_result_t;
+typedef struct app_timeout app_timeout_t;
+
+
+/**
+ * Initialises and starts a timeout.
+ *
+ * @param timeout       Pointer to timeout object to initialise.
+ *
+ * @param period_ms     Period, in milliseconds, until timeout expires.
+ */
+void app_timeout_init(app_timeout_t* timeout, int64_t period_ms);
+
+
+/**
+ * Determines time until timeout object expires.
+ *
+ * @param timeout       Pointer to timeout object.
+ *
+ * @return Number of milliseconds remaining until timeout expires or zero if it has already expired.
+ */
+int64_t app_timeout_remaining_ms(const app_timeout_t* timeout);
+
+
+// PRIVATE
+/// @cond DOXYGEN_IGNORE
+
+struct app_timeout {
+    int64_t expiry;
+};
+
+/// @endcond

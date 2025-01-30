@@ -1,5 +1,3 @@
-/// @file app-result.h
-
 /*
  * x0 - A lightweight RISC-V (RV32IM) simulator with GDB and Lua integration.
  *
@@ -19,17 +17,25 @@
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#pragma once
+#include "app-assert.h"
+#include "app-event.h"
+#include "app-timeout.h"
 
 
-/**
- * Enumeration of result codes.
- */
-typedef enum {
-    APP_RESULT_OK,
-    APP_RESULT_INVALID_ARG,
-    APP_RESULT_TIMEOUT,
-    APP_RESULT_IO_ERROR,
-    APP_RESULT_HUP,
-    APP_RESULT_CANNOT_BIND_SERVICE
-} app_result_t;
+int64_t app_timeout_remaining_ms(const app_timeout_t* timeout) {
+    APP_ASSERT(timeout);
+
+    int64_t remaining_ms = timeout->expiry - app_event_clock();
+
+    if ( remaining_ms < 0 ) {
+        remaining_ms = 0;
+    }
+
+    return remaining_ms;
+}
+
+
+void app_timeout_init(app_timeout_t* timeout, int64_t period_ms) {
+    APP_ASSERT(timeout);
+    timeout->expiry = app_event_clock() + period_ms;
+}

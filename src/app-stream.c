@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "app-assert.h"
 #include "app-heap.h"
@@ -42,6 +43,154 @@ struct app_stream {
     app_event_id_t write_io_id;
     app_event_id_t write_timeout_id;
 };
+
+
+static void read_io_callback(uint32_t events, void* user_data) {
+    app_stream_t* stream = user_data;
+    ssize_t read_result;
+    app_result_t callback_result;
+
+    // cancel read timer event
+    app_event_unregister_timer(stream->read_timeout_id);
+    stream->read_io_id = 0;
+    stream->read_timeout_id = 0;
+
+    if ( events & APP_EVENT_HUP ) {
+        read_result = 0;
+        callback_result = APP_RESULT_HUP;
+    } else if ( events & APP_EVENT_IN ) {
+        // perform read
+        do {
+            read_result = read(stream->read_fd, stream->read_buffer, stream->read_n_bytes);
+        } while(read_result < 0 && errno == EINTR);
+
+        // decode read result
+        if ( read_result >= 0 ) {
+            callback_result = APP_RESULT_OK;
+        } else if ( errno == EAGAIN ) {
+            read_result = 0;
+            callback_result = APP_RESULT_OK;
+        } else {
+            read_result = 0;
+            callback_result = APP_RESULT_IO_ERROR;
+        }
+    } else {
+        read_result = 0;
+        callback_result = APP_RESULT_IO_ERROR;
+    }
+
+    // dispatch read callback
+    stream->read_callback(stream, callback_result, read_result, stream->read_user_data);
+}
+
+
+static void read_timeout_callback(void* user_data) {
+    app_stream_t* stream = user_data;
+
+    // cancel read IO event
+    app_event_unregister_io(stream->read_io_id);
+    stream->read_io_id = 0;
+    stream->read_timeout_id = 0;
+
+    // dispatch read callback
+    stream->read_callback(stream, APP_RESULT_TIMEOUT, 0, stream->read_user_data);
+}
+
+
+void app_stream_read(app_stream_t* stream, void* buffer, ssize_t n_bytes, app_stream_callback_t callback,
+        void* user_data, const app_timeout_t* timeout) {
+    APP_ASSERT(stream);
+    APP_ASSERT(buffer || n_bytes == 0);
+    APP_ASSERT(callback);
+
+    // ensure another read operaton is not in progress
+    if ( stream->read_io_id ) {
+        abort(); // no return
+    }
+
+    // store read operation data
+    stream->read_buffer = buffer;
+    stream->read_n_bytes = n_bytes;
+    stream->read_callback = callback;
+    stream->read_user_data = user_data;
+    stream->read_io_id = app_event_register_io(stream->read_fd, APP_EVENT_IN, read_io_callback, stream);
+    stream->read_timeout_id = timeout ? app_event_register_timer(app_timeout_remaining_ms(timeout),
+            read_timeout_callback, stream) : 0;
+}
+
+
+static void write_io_callback(uint32_t events, void* user_data) {
+    app_stream_t* stream = user_data;
+    ssize_t write_result;
+    app_result_t callback_result;
+
+    // cancel write timer event
+    app_event_unregister_timer(stream->write_timeout_id);
+    stream->write_io_id = 0;
+    stream->write_timeout_id = 0;
+
+    if ( events & APP_EVENT_HUP ) {
+        write_result = 0;
+        callback_result = APP_RESULT_HUP;
+    } else if ( events & APP_EVENT_OUT ) {
+        // perform write
+        do {
+            write_result = write(stream->write_fd, stream->write_buffer, stream->write_n_bytes);
+        } while(write_result < 0 && errno == EINTR);
+
+        // decode write result
+        if ( write_result >= 0 ) {
+            callback_result = APP_RESULT_OK;
+        } else if ( errno == EAGAIN ) {
+            write_result = 0;
+            callback_result = APP_RESULT_OK;
+        } else {
+            write_result = 0;
+            callback_result = APP_RESULT_IO_ERROR;
+        }
+    } else {
+        write_result = 0;
+        callback_result = APP_RESULT_IO_ERROR;
+    }
+
+    // dispatch write callback
+    stream->write_callback(stream, callback_result, write_result, stream->write_user_data);
+}
+
+
+static void write_timeout_callback(void* user_data) {
+    app_stream_t* stream = user_data;
+
+    // cancel write IO event
+    app_event_unregister_io(stream->write_io_id);
+    stream->write_io_id = 0;
+    stream->write_timeout_id = 0;
+
+    // dispatch write callback
+    stream->write_callback(stream, APP_RESULT_TIMEOUT, 0, stream->write_user_data);
+}
+
+
+void app_stream_write(app_stream_t* stream, const void* buffer, ssize_t n_bytes, app_stream_callback_t callback,
+        void* user_data, const app_timeout_t* timeout) {
+    APP_ASSERT(stream);
+    APP_ASSERT(buffer || n_bytes == 0);
+    APP_ASSERT(callback);
+
+    // ensure another read operaton is not in progress
+    if ( stream->write_io_id ) {
+        abort(); // no return
+    }
+
+    // store read operation data
+    stream->write_buffer = buffer;
+    stream->write_n_bytes = n_bytes;
+    stream->write_callback = callback;
+    stream->write_user_data = user_data;
+    stream->write_io_id = app_event_register_io(stream->write_fd, APP_EVENT_OUT, write_io_callback, stream);
+    stream->write_timeout_id = timeout ? app_event_register_timer(app_timeout_remaining_ms(timeout),
+            write_timeout_callback, stream) : 0;
+}
 
 
 app_stream_t* app_stream_create(int read_fd, int write_fd) {
@@ -73,49 +222,22 @@ app_stream_t* app_stream_create(int read_fd, int write_fd) {
 
 
 void app_stream_destroy(app_stream_t* stream) {
-    app_heap_free(stream);
-}
+    if ( stream ) {
+        // unregister read event handlers
+        app_event_unregister_io(stream->read_io_id);
+        stream->read_io_id = 0;
 
+        app_event_unregister_timer(stream->read_timeout_id);
+        stream->read_timeout_id = 0;
 
-void app_stream_read(app_stream_t* stream, void* buffer, ssize_t n_bytes, app_stream_callback_t callback,
-        void* user_data, app_timeout_t* timeout) {
-    APP_ASSERT(stream);
-    APP_ASSERT(buffer || n_bytes == 0);
-    APP_ASSERT(callback);
+        // unregister write event handlers
+        app_event_unregister_io(stream->write_io_id);
+        stream->write_io_id = 0;
 
-    // ensure another read operaton is not in progress
-    if ( stream->read_callback ) {
-        abort(); // no return
+        app_event_unregister_timer(stream->write_timeout_id);
+        stream->write_timeout_id = 0;
+
+        // free object
+        app_heap_free(stream);
     }
-
-    // store read operation data
-    stream->read_buffer = buffer;
-    stream->read_n_bytes = n_bytes;
-    stream->read_callback = callback;
-    stream->read_user_data = NULL;
-    stream->read_io_id = app_event_register_io(stream->read_fd, APP_EVENT_IN, read_io_callback, stream);
-    stream->read_timeout_id = timeout ? app_event_register_timer(app_timeout_remaining_ms(timeout),
-            read_timeout_callback, stream);
-}
-
-
-void app_stream_write(app_stream_t* stream, const void* buffer, ssize_t n_bytes, app_stream_callback_t callback,
-        void* user_data, app_timeout_t* timeout) {
-    APP_ASSERT(stream);
-    APP_ASSERT(buffer || n_bytes == 0);
-    APP_ASSERT(callback);
-
-    // ensure another read operaton is not in progress
-    if ( stream->write_callback ) {
-        abort(); // no return
-    }
-
-    // store read operation data
-    stream->write_buffer = buffer;
-    stream->write_n_bytes = n_bytes;
-    stream->write_callback = callback;
-    stream->write_user_data = NULL;
-    stream->write_io_id = app_event_register_io(stream->write_fd, APP_EVENT_IN, write_io_callback, stream);
-    stream->write_timeout_id = timeout ? app_event_register_timer(app_timeout_remaining_ms(timeout),
-            write_timeout_callback, stream);
 }

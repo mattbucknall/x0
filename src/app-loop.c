@@ -29,7 +29,7 @@
 #include "app-loop.h"
 
 static volatile app_result_t m_result;
-static volatile bool m_run_flag;
+static volatile bool m_run_flag = true;
 
 
 static void sig_callback(uint32_t events, void* user_data) {
@@ -64,12 +64,10 @@ app_result_t app_loop_run(void) {
     sig_id = app_event_register_io(sig_fd, APP_EVENT_IN, sig_callback, NULL);
 
     // loop until run flag is cleared or error occurs
-    m_run_flag = true;
-
-    do {
+    while (m_run_flag) {
         // process events
         app_event_poll(true);
-    } while(m_run_flag);
+    }
 
     // unregister and close signal fd
     app_event_unregister_io(sig_id);

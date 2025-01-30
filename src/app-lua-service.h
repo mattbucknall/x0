@@ -1,4 +1,4 @@
-/// @file app-result.h
+/// @file app-lua-service.h
 
 /*
  * x0 - A lightweight RISC-V (RV32IM) simulator with GDB and Lua integration.
@@ -21,15 +21,12 @@
 
 #pragma once
 
+#include <netinet/in.h>
+
 
 /**
- * Enumeration of result codes.
+ * Starts Lua service bound to given address.
+ *
+ * @param addr      Address to bind service to.
  */
-typedef enum {
-    APP_RESULT_OK,
-    APP_RESULT_INVALID_ARG,
-    APP_RESULT_TIMEOUT,
-    APP_RESULT_IO_ERROR,
-    APP_RESULT_HUP,
-    APP_RESULT_CANNOT_BIND_SERVICE
-} app_result_t;
+void app_lua_service_init(const struct sockaddr_in* addr);

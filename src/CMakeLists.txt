@@ -21,8 +21,12 @@ add_executable(x0
         app-heap.c
         app-log.c
         app-loop.c
+        app-lua-service.c
         app-net-utils.c
         app-options.c
+        app-service.c
+        app-stream.c
+        app-timeout.c
         main.c
 )
 

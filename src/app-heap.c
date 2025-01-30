@@ -18,6 +18,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "app-heap.h"
 
@@ -46,4 +47,18 @@ void* app_heap_realloc(void* ptr, size_t size) {
 
 void app_heap_free(void* ptr) {
     free(ptr);
+}
+
+
+char* app_heap_strdup(const char* str) {
+    if ( str ) {
+        size_t len = strlen(str);
+        char* copy = app_heap_alloc(len + 1);
+
+        memcpy(copy, str, len + 1);
+
+        return copy;
+    } else {
+        return NULL;
+    }
 }

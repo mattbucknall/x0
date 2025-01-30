@@ -33,14 +33,14 @@
 
 typedef struct {
     app_event_id_t id;
-    app_event_callback_t callback;
+    app_event_io_callback_t callback;
     void* user_data;
 } app_event_io_t;
 
 
 typedef struct {
     app_event_id_t id;
-    app_event_callback_t callback;
+    app_event_timer_callback_t callback;
     void* user_data;
     int64_t expiry;
 } app_event_timer_t;
@@ -63,7 +63,7 @@ int64_t app_event_clock(void) {
 }
 
 
-app_event_id_t app_event_register_io(int fd, uint32_t events, app_event_callback_t callback, void* user_data) {
+app_event_id_t app_event_register_io(int fd, uint32_t events, app_event_io_callback_t callback, void* user_data) {
     APP_ASSERT(fd >= 0);
     APP_ASSERT(events);
     APP_ASSERT(callback);
@@ -119,7 +119,7 @@ static void gc_io(void) {
 }
 
 
-app_event_id_t app_event_register_timer(int64_t period, app_event_callback_t callback, void* user_data) {
+app_event_id_t app_event_register_timer(int64_t period, app_event_timer_callback_t callback, void* user_data) {
     APP_ASSERT(period >= 0);
     APP_ASSERT(callback);
 
@@ -242,7 +242,7 @@ void app_event_poll(bool block) {
             m_timer_records[i].id = 0;
 
             // dispatch handler
-            m_timer_records[i].callback(0, m_timer_records[i].user_data);
+            m_timer_records[i].callback(m_timer_records[i].user_data);
         }
     }
 }

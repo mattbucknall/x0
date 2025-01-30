@@ -30,7 +30,7 @@
  * @param size      Size of allocation in bytes.
  *
  * @return  Pointer to allocated memory (never NULL).
- * 
+ *
  * @note    Performs abort if allocation fails.
  */
 void* app_heap_alloc(size_t size);
@@ -39,13 +39,13 @@ void* app_heap_alloc(size_t size);
 /**
  * Reallocates space on heap for previously allocated block of memory. Contents of original allocation will be copied
  * to new, truncated if new allocation is smaller than the original.
- * 
+ *
  * @param ptr   Pointer to previously allocated memory (can also be NULL, which case function acts like app_heap_alloc).
- * 
+ *
  * @param size  New size of allocation in bytes. Zero causes function to act the same as app_heap_free.
- * 
+ *
  * @return  Pointer to reallocator memory (never NULL).
- * 
+ *
  * @note    Performs abort if reallocation fails.
  */
 void* app_heap_realloc(void* ptr, size_t size);
@@ -59,3 +59,13 @@ void* app_heap_realloc(void* ptr, size_t size);
  * @note    Does nothing if ptr is NULL.
  */
 void app_heap_free(void* ptr);
+
+
+/**
+ * Creates a copy of given string. Must be destroyed with app_heap_free.
+ *
+ * @param str   String to copy.
+ *
+ * @return      Pointer to copy of str.
+ */
+char* app_heap_strdup(const char* str);

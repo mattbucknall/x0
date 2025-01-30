@@ -88,7 +88,7 @@ void app_stream_destroy(app_stream_t* stream);
  * @param timeout   Optional timeout.
  */
 void app_stream_read(app_stream_t* stream, void* buffer, ssize_t n_bytes, app_stream_callback_t callback,
-        void* user_data, app_timeout_t* timeout);
+        void* user_data, const app_timeout_t* timeout);
 
 
 /**
@@ -107,4 +107,4 @@ void app_stream_read(app_stream_t* stream, void* buffer, ssize_t n_bytes, app_st
  * @param timeout   Optional timeout.
  */
 void app_stream_write(app_stream_t* stream, const void* buffer, ssize_t n_bytes, app_stream_callback_t callback,
-        void* user_data, app_timeout_t* timeout);
+        void* user_data, const app_timeout_t* timeout);

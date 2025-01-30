@@ -18,12 +18,15 @@
  */
 
 #include <stdlib.h>
+#include <unistd.h>
 
  #include "app-event.h"
  #include "app-log.h"
  #include "app-loop.h"
+ #include "app-lua-service.h"
  #include "app-options.h"
  #include "app-result.h"
+ #include "app-stream.h"
 
 
  int main(int argc, char* argv[]) {
@@ -35,6 +38,9 @@
 
     // initialise event module
     app_event_init();
+
+    // initialise lua telnet service
+    app_lua_service_init(app_options_lua_bind_address());
 
     // start main loop
     return (app_loop_run() == APP_RESULT_OK) ? EXIT_SUCCESS : EXIT_FAILURE;
