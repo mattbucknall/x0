@@ -61,7 +61,7 @@ void app_log_report_v(app_log_priority_t priority, const char* format, va_list a
     }
 
     // output message prologue
-    fprintf(stderr, "[%-7s]: ", app_log_priority_to_string(priority));
+    fprintf(stderr, "\r[%-7s]: ", app_log_priority_to_string(priority));
 
     // output formatted message
     vfprintf(stderr, format, args);

@@ -19,6 +19,8 @@
 
 #include <stdlib.h>
 
+#include <libtelnet.h>
+
 #include "app-heap.h"
 #include "app-loop.h"
 #include "app-lua-service.h"
@@ -27,17 +29,117 @@
 
 
 #define APP_LUA_SERVICE_MAX_CONNECTIONS             64
+#define APP_LUA_SERVICE_READ_BUFFER_SIZE            4096
 
 
 typedef struct {
+    app_session_t* session;
     app_stream_t* stream;
+    telnet_t* telnet;
+    char read_buffer[APP_LUA_SERVICE_READ_BUFFER_SIZE];
+    app_event_id_t close_id;
+
 } app_lua_service_session_t;
+
+
+static void schedule_read(app_lua_service_session_t* session);
 
 
 static app_service_t* m_service;
 
 
+static void close_session_callback(void* user_data) {
+    app_lua_service_session_t* session = user_data;
+
+    session->close_id = 0;
+    app_service_close_session(session->service, session);
+}
+
+
+static void schedule_close(app_lua_service_session_t* session) {
+    // defer session close until next app_event_poll
+    if ( session->close_id == 0 ) {
+        session->close_id = app_event_register_timer(0, close_session_callback, session);
+    }
+}
+
+
+static void handle_telnet_recv_event(app_lua_service_session_t* session, telnet_event_t* event) {
+
+}
+
+
+static void handle_telnet_send_event(app_lua_service_session_t* session, telnet_event_t* event) {
+    const char* buffer_i = event->data.buffer;
+    const char* buffer_e = buffer_i + event->data.size;
+
+    while(buffer_i < buffer_e) {
+        ssize_t n_written;
+
+        n_written = app_stream_write_sync(session->stream, buffer_i, buffer_e - buffer_i);
+
+        if ( n_written < 0 ) {
+            // TODO: Log write failure
+            schedule_close(session);
+            return;
+        }
+
+        buffer_i += n_written;
+    }
+}
+
+
+static void telnet_callback(telnet_t* telnet, telnet_event_t* event, void* user_data) {
+    app_lua_service_session_t* session = user_data;
+
+    switch(event->type) {
+    case TELNET_EV_DATA:
+        handle_telnet_recv_event(session, event);
+        break;
+
+    case TELNET_EV_SEND:
+        handle_telnet_send_event(session, event);
+        break;
+
+    case TELNET_EV_ERROR:
+
+        break;
+
+    default:
+        break;
+    }
+}
+
+
+static void read_callback(app_stream_t* stream, app_result_t result, ssize_t n_transferred, void* user_data) {
+    app_lua_service_session_t* session = user_data;
+
+    if ( result == APP_RESULT_OK ) {
+        // feed telnet context with received data
+        telnet_recv(session->telnet, session->read_buffer, n_transferred);
+    }
+
+    // continue receiving input
+    schedule_read(session);
+}
+
+
+static void schedule_read(app_lua_service_session_t* session) {
+    app_stream_read(session->stream, session->read_buffer, APP_LUA_SERVICE_READ_BUFFER_SIZE,
+            read_callback, session, NULL);
+}
+
+
 static void* session_create_callback(app_service_t* service, app_stream_t* stream, void* user_data) {
+    static const telnet_telopt_t TELNET_OPTS[] = {
+        {TELNET_TELOPT_ECHO,        TELNET_WILL,    TELNET_DONT},   // I will echo, you don't need to
+        {TELNET_TELOPT_BINARY,      TELNET_WILL,    TELNET_DO},     // I will use binary mode, you should too
+        {TELNET_TELOPT_NAWS,        TELNET_WONT,    TELNET_DO},     // I won't send window size changes, but you should
+        {TELNET_TELOPT_LINEMODE,    TELNET_WONT,    TELNET_DONT},   // I won't use line mode, neither should you
+        {TELNET_TELOPT_SGA,         TELNET_WONT,    TELNET_DONT},   // Enable 'suppress go-ahead'
+        {-1, 0, 0} // end marker
+    };
+
     app_lua_service_session_t* session;
 
     // unused arguments
@@ -47,7 +149,13 @@ static void* session_create_callback(app_service_t* service, app_stream_t* strea
     // create session object
     session = app_heap_alloc(sizeof(app_lua_service_session_t));
 
+    session->service = service;
     session->stream = stream;
+    session->telnet = telnet_init(TELNET_OPTS, telnet_callback, 0, session);
+    session->close_id = 0;
+
+    // wait for input
+    schedule_read(session);
 
     return session;
 }
@@ -56,6 +164,10 @@ static void* session_create_callback(app_service_t* service, app_stream_t* strea
 static void session_destroy_callback(void* session_object, void* user_data) {
     // unused arguments
     (void) user_data;
+
+    // cancel any close events
+    app_event_unregister_timer(session->close_id);
+    session->close_id = 0;
 
     // destroy session object
     app_heap_free(session_object);

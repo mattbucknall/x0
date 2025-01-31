@@ -108,3 +108,18 @@ void app_stream_read(app_stream_t* stream, void* buffer, ssize_t n_bytes, app_st
  */
 void app_stream_write(app_stream_t* stream, const void* buffer, ssize_t n_bytes, app_stream_callback_t callback,
         void* user_data, const app_timeout_t* timeout);
+
+
+/**
+ * Perform synchronous write operation.
+ *
+ * @param stream    Stream to write to.
+ *
+ * @param buffer    Buffer to write data from.
+ *
+ * @param n_bytes   Maximum number of bytes to write (operation may write less).
+ *
+ * @return      Positive number indicating number of bytes written, if successful, otherewise negative value indicating
+ *              that an error occurred.
+ */
+ssize_t app_stream_write_sync(app_stream_t* stream, const void* buffer, ssize_t n_bytes);

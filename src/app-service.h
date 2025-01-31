@@ -97,4 +97,4 @@ void app_service_destroy(app_service_t* service);
  *
  * @param session_object    Session object to destroy.
  */
-void app_service_destroy_session(app_service_t* service, void* session_object);
+void app_service_close_session(app_service_t* service, void* session_object);

@@ -177,7 +177,7 @@ void app_stream_write(app_stream_t* stream, const void* buffer, ssize_t n_bytes,
     APP_ASSERT(buffer || n_bytes == 0);
     APP_ASSERT(callback);
 
-    // ensure another read operaton is not in progress
+    // ensure another write operaton is not in progress
     if ( stream->write_io_id ) {
         abort(); // no return
     }
@@ -190,6 +190,20 @@ void app_stream_write(app_stream_t* stream, const void* buffer, ssize_t n_bytes,
     stream->write_io_id = app_event_register_io(stream->write_fd, APP_EVENT_OUT, write_io_callback, stream);
     stream->write_timeout_id = timeout ? app_event_register_timer(app_timeout_remaining_ms(timeout),
             write_timeout_callback, stream) : 0;
+}
+
+
+ssize_t app_stream_write_sync(app_stream_t* stream, const void* buffer, ssize_t n_bytes) {
+    APP_ASSERT(stream);
+    APP_ASSERT(buffer || n_bytes == 0);
+
+    // ensure another write operaton is not in progress
+    if ( stream->write_io_id ) {
+        abort(); // no return
+    }
+
+    // perform write
+    return write(stream->write_fd, buffer, n_bytes);
 }
 
 
