@@ -33,12 +33,10 @@
 
 
 typedef struct {
-    app_session_t* session;
-    app_stream_t* stream;
+    const app_service_session_ctx_t* ctx;
     telnet_t* telnet;
     char read_buffer[APP_LUA_SERVICE_READ_BUFFER_SIZE];
     app_event_id_t close_id;
-
 } app_lua_service_session_t;
 
 
@@ -52,7 +50,7 @@ static void close_session_callback(void* user_data) {
     app_lua_service_session_t* session = user_data;
 
     session->close_id = 0;
-    app_service_close_session(session->service, session);
+    app_service_close_session(session->ctx);
 }
 
 
@@ -76,7 +74,7 @@ static void handle_telnet_send_event(app_lua_service_session_t* session, telnet_
     while(buffer_i < buffer_e) {
         ssize_t n_written;
 
-        n_written = app_stream_write_sync(session->stream, buffer_i, buffer_e - buffer_i);
+        n_written = app_stream_write_sync(session->ctx->stream, buffer_i, buffer_e - buffer_i);
 
         if ( n_written < 0 ) {
             // TODO: Log write failure
@@ -125,12 +123,12 @@ static void read_callback(app_stream_t* stream, app_result_t result, ssize_t n_t
 
 
 static void schedule_read(app_lua_service_session_t* session) {
-    app_stream_read(session->stream, session->read_buffer, APP_LUA_SERVICE_READ_BUFFER_SIZE,
+    app_stream_read(session->ctx->stream, session->read_buffer, APP_LUA_SERVICE_READ_BUFFER_SIZE,
             read_callback, session, NULL);
 }
 
 
-static void* session_create_callback(app_service_t* service, app_stream_t* stream, void* user_data) {
+static void* session_create_callback(app_service_t* service, const app_service_session_ctx_t* ctx, void* user_data) {
     static const telnet_telopt_t TELNET_OPTS[] = {
         {TELNET_TELOPT_ECHO,        TELNET_WILL,    TELNET_DONT},   // I will echo, you don't need to
         {TELNET_TELOPT_BINARY,      TELNET_WILL,    TELNET_DO},     // I will use binary mode, you should too
@@ -149,8 +147,7 @@ static void* session_create_callback(app_service_t* service, app_stream_t* strea
     // create session object
     session = app_heap_alloc(sizeof(app_lua_service_session_t));
 
-    session->service = service;
-    session->stream = stream;
+    session->ctx = ctx;
     session->telnet = telnet_init(TELNET_OPTS, telnet_callback, 0, session);
     session->close_id = 0;
 
@@ -162,6 +159,8 @@ static void* session_create_callback(app_service_t* service, app_stream_t* strea
 
 
 static void session_destroy_callback(void* session_object, void* user_data) {
+    app_lua_service_session_t* session = session_object;
+
     // unused arguments
     (void) user_data;
 

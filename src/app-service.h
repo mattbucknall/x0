@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #include <netinet/in.h>
 
 #include "app-stream.h"
@@ -33,23 +35,33 @@ typedef struct app_service app_service_t;
 
 
 /**
+ * Contextual data for each session started by a service.
+ */
+typedef struct {
+    app_service_t* service;                 ///< Service that created session.
+    app_stream_t* stream;                   ///< Stream for session to perform I/O with.
+    char client_addr_str[INET_ADDRSTRLEN];  ///< String containing client's address.
+    uint16_t client_port;                   ///< Client's port number
+} app_service_session_ctx_t;
+
+
+/**
  * Function type for callback invoked by a service to create a session object serving a new connection.
  *
  * @param service   Service invoking the function.
  *
- * @param stream    New connection's stream. Ownership of the stream object stays with the service - session
- *                  implementations are not responsible for destroying the stream object.
+ * @param ctx       Session data.
  *
  * @param user_data Opaque pointer passed to app_service_create.
  *
  * @return  Pointer to session object or NULL if session was not created.
  */
-typedef void* (*app_service_create_session_callback_t) (app_service_t* service, app_stream_t* stream, void* user_data);
+typedef void* (*app_service_create_session_callback_t) (app_service_t* service,
+        const app_service_session_ctx_t* ctx, void* user_data);
 
 
 /**
- * Function type for callback invoked by a service when it needs to destroy a session object. This function must
- * cleanup any resources used by the session object, including the stream that was passed to its create function.
+ * Function type for callback invoked by a service when it needs to destroy a session object.
  *
  * @param session_object    Pointer to session object.
  *
@@ -93,8 +105,8 @@ void app_service_destroy(app_service_t* service);
  * Destroys a session object belonging to a service. Session implementations may use this function to destroy
  * themselves when, for example, their remote peer has closed its connection.
  *
- * @param service           Service to which session belongs.
+ * @param ctx               Context for session to be closed.
  *
- * @param session_object    Session object to destroy.
+ * @note    Calling this function invalidates session data.
  */
-void app_service_close_session(app_service_t* service, void* session_object);
+void app_service_close_session(const app_service_session_ctx_t* ctx);

@@ -32,10 +32,12 @@
 
 
 typedef struct app_service_session {
+    app_service_session_ctx_t ctx; // must be first member
+    struct app_service_session* prev;
+    struct app_service_session* next;
     int client_socket;
-    app_stream_t* stream;
-    void* session_object;
-} app_service_session_t;
+    void* object;
+} app_service_session_internal_t;
 
 
 struct app_service {
@@ -44,11 +46,11 @@ struct app_service {
     app_service_create_session_callback_t create_session_cb;
     app_service_destroy_session_callback_t destroy_session_cb;
     void* user_data;
-    unsigned int session_count;
-    unsigned int session_capacity;
-    app_service_session_t* sessions;
     int listen_socket;
     app_event_id_t listen_id;
+    app_service_session_internal_t* first_session;
+    app_service_session_internal_t* last_session;
+    unsigned int session_count;
 };
 
 
@@ -63,6 +65,38 @@ static void close_socket(int skt) {
             close_result = close(skt);
         } while(close_result < 0 && errno == EINTR);
     }
+}
+
+
+static void cleanup_session(app_service_t* service, app_service_session_internal_t* session_internal) {
+    APP_ASSERT(service);
+    APP_ASSERT(session_internal);
+    APP_ASSERT(session_internal->ctx.service == service);
+
+    // destroy session object
+    if ( session_internal->object ) {
+        app_log_info("%s service closing connection from %s:%u", service->name,
+                session_internal->ctx.client_addr_str, session_internal->ctx.client_port);
+
+        service->destroy_session_cb(session_internal->object, service->user_data);
+        session_internal->object = NULL;
+    }
+
+    // destroy stream
+    if ( session_internal->ctx.stream ) {
+        app_stream_destroy(session_internal->ctx.stream);
+        session_internal->ctx.stream = NULL;
+    }
+
+    // close socket
+    if ( session_internal->client_socket >= 0 ) {
+        close_socket(session_internal->client_socket);
+        session_internal->client_socket = -1;
+    }
+
+    // destroy session record
+    session_internal->ctx.service = NULL;
+    app_heap_free(session_internal);
 }
 
 
@@ -88,37 +122,48 @@ static void accept_callback(uint32_t events, void* user_data) {
             // reject connection if max sessions has been reached
             close_socket(client_socket);
         } else {
-            app_service_session_t* session;
+            app_service_session_internal_t* session_internal;
 
-            // ensure there is space for new session in service's list
-            if ( service->session_count == service->session_capacity ) {
-                service->session_capacity *= 2;
-                service->sessions = app_heap_realloc(service->sessions,
-                        sizeof(app_service_session_t) * service->session_capacity);
+            // create session record
+            session_internal = app_heap_alloc(sizeof(app_service_session_internal_t));
+
+            session_internal->client_socket = client_socket;
+            session_internal->ctx.stream = app_stream_create(client_socket, client_socket);
+
+            // attempt to get client address
+            if ( getpeername(client_socket, (struct sockaddr*) &client_addr, &client_addr_len) == 0 &&
+                        inet_ntop(AF_INET, &(client_addr.sin_addr), session_internal->ctx.client_addr_str,
+                        sizeof(session_internal->ctx.client_addr_str)) != NULL ) {
+                session_internal->ctx.client_port = ntohs(client_addr.sin_port);
+            } else {
+                session_internal->ctx.client_addr_str[0] = '?';
+                session_internal->ctx.client_addr_str[1] = '\0';
+                session_internal->ctx.client_port = 0;
             }
 
-            // create new session object
-            session = &service->sessions[service->session_count];
+            // create session object
+            session_internal->object = service->create_session_cb(service, &session_internal->ctx, service->user_data);
 
-            session->client_socket = client_socket;
-            session->stream = app_stream_create(client_socket, client_socket);
-            session->session_object = service->create_session_cb(service, session->stream, service->user_data);
-
-            if ( session->session_object == NULL ) {
-                // if session object not created, destroy stream and close client socket
-                app_stream_destroy(session->stream);
-                session->stream = NULL;
-                close_socket(session->client_socket);
-                session->client_socket = -1;
-            } else {
-                // commit session to list
-                service->session_count++;
-
-                // log connection acceptance
-                if ( getpeername(client_socket, (struct sockaddr*) &client_addr, &client_addr_len) == 0 &&
-                        inet_ntop(AF_INET, &(client_addr.sin_addr), addr_str, sizeof(addr_str)) != NULL ) {
-                    app_log_info("%s service accepting connection from %s", service->name, addr_str);
+            // log success and link session record into service's list on success or destroy on failure
+            if ( session_internal->object ) {
+                if ( service->last_session ) {
+                    service->last_session->next = session_internal;
+                } else {
+                    service->first_session = session_internal;
                 }
+
+                session_internal->next = NULL;
+                session_internal->prev = service->last_session;
+                service->last_session = session_internal;
+
+                app_log_info("%s service accepting connection from %s:%u",
+                        service->name,
+                        session_internal->ctx.client_addr_str,
+                        session_internal->ctx.client_port);
+
+                service->session_count++;
+            } else {
+                cleanup_session(service, session_internal);
             }
         }
     }
@@ -138,42 +183,29 @@ static void schedule_accept(app_service_t* service) {
 }
 
 
-static void cleanup_session(app_service_t* service, app_service_session_t* session) {
-    struct sockaddr_in client_addr;
-    socklen_t client_addr_len;
-    char addr_str[INET_ADDRSTRLEN];
+void app_service_close_session(const app_service_session_ctx_t* ctx) {
+    APP_ASSERT(ctx);
 
-    service->destroy_session_cb(session->session_object, service->user_data);
-    app_stream_destroy(session->stream);
-    session->stream = NULL;
+    app_service_t* service = ctx->service;
+    app_service_session_internal_t* session_internal = (app_service_session_internal_t*) ctx;
 
-    if ( getpeername(session->client_socket, (struct sockaddr*) &client_addr, &client_addr_len) == 0 &&
-            inet_ntop(AF_INET, &(client_addr.sin_addr), addr_str, sizeof(addr_str)) != NULL ) {
-        app_log_info("%s service closing connection from %s", service->name, addr_str);
+    // unlink session record
+    service->session_count--;
+
+    if ( session_internal->next ) {
+        session_internal->next->prev = session_internal->prev;
+    } else {
+        service->last_session = session_internal->prev;
     }
 
-    close_socket(session->client_socket);
-    session->client_socket = -1;
-}
-
-
-void app_service_close_session(app_service_t* service, void* session_object) {
-    APP_ASSERT(service);
-    APP_ASSERT(session_object);
-
-    // find session object and destroy it along with its session record
-    for (size_t i = 0; i < service->session_count; ++i) {
-        app_service_session_t* session = &service->sessions[i];
-
-        if ( session->session_object == session_object ) {
-            cleanup_session(service, session);
-            service->sessions[i] = service->sessions[--service->session_count];
-            return;
-        }
+    if ( session_internal->prev ) {
+        session_internal->prev->next = session_internal->next;
+    } else {
+        service->first_session = session_internal->next;
     }
 
-    // if execution gets here, session_object does not belong to this service
-    abort();
+    // destroy session
+    cleanup_session(service, session_internal);
 }
 
 
@@ -221,11 +253,11 @@ app_service_t* app_service_new(const char* name, const struct sockaddr_in* addr,
     service->create_session_cb = create_session_cb;
     service->destroy_session_cb = destroy_session_cb;
     service->user_data = user_data;
-    service->session_count = 0;
-    service->session_capacity = 16;
-    service->sessions = app_heap_alloc(sizeof(app_service_session_t) * service->session_capacity);
     service->listen_socket = listen_socket;
     service->listen_id = 0;
+    service->first_session = NULL;
+    service->last_session = NULL;
+    service->session_count = 0;
 
     // log start message
     app_log_info("%s service listening on %s:%u", service->name, addr_str, ntohs(addr->sin_port));
@@ -243,14 +275,9 @@ void app_service_destroy(app_service_t* service) {
         app_log_info("Stopping %s service", service->name);
 
         // destroy all sessions
-        for (size_t i = 0; i < service->session_count; ++i) {
-            cleanup_session(service, &service->sessions[i]);
+        while(service->last_session) {
+            app_service_close_session((app_service_session_ctx_t*) (service->last_session));
         }
-
-        app_heap_free(service->sessions);
-        service->session_count = 0;
-        service->session_capacity = 0;
-        service->sessions = NULL;
 
         // cancel any listen events
         app_event_unregister_io(service->listen_id);
