@@ -16,5 +16,5 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 add_subdirectory(libtelnet)
-add_subdirectory(linenoise)
 add_subdirectory(lua)
+add_subdirectory(mline)

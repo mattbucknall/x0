@@ -128,6 +128,7 @@ static void accept_callback(uint32_t events, void* user_data) {
             session_internal = app_heap_alloc(sizeof(app_service_session_internal_t));
 
             session_internal->client_socket = client_socket;
+            session_internal->ctx.service = service;
             session_internal->ctx.stream = app_stream_create(client_socket, client_socket);
 
             // attempt to get client address

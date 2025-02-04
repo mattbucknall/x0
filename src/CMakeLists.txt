@@ -31,7 +31,7 @@ add_executable(x0
 )
 
 # dependencies
-target_link_libraries(x0 PRIVATE libtelnet linenoise lua)
+target_link_libraries(x0 PRIVATE libtelnet lua mline)
 
 # set optimization level depending on build type
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")

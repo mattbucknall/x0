@@ -1,6 +1,6 @@
-# x0 - A lightweight RISC-V (RV32IM) simulator with GDB and Lua integration.
+# mline - Lightweight UTF-8 aware line editing library.
 #
-# Copyright (C) 2024-2025 Matthew T. Bucknall <matthew.bucknall@gmail.com>
+# Copyright (C) 2025 Matthew T. Bucknall <matthew.bucknall@gmail.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation the
@@ -15,8 +15,6 @@
 # OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-add_library(linenoise
-    linenoise.c
-)
+add_library(mline STATIC mline.c)
 
-target_include_directories(linenoise PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(mline PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
