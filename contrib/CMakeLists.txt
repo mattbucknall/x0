@@ -17,4 +17,4 @@
 
 add_subdirectory(libtelnet)
 add_subdirectory(lua)
-add_subdirectory(mline)
+add_subdirectory(ned)

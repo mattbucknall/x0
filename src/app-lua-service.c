@@ -20,7 +20,7 @@
 #include <stdlib.h>
 
 #include <libtelnet.h>
-#include <linenoise.h>
+#include <ned.h>
 
 #include "app-heap.h"
 #include "app-log.h"
@@ -31,16 +31,16 @@
 
 
 #define APP_LUA_SERVICE_MAX_CONNECTIONS             64
-#define APP_LUA_SERVICE_READ_BUFFER_SIZE            4096
+#define APP_LUA_SERVICE_INPUT_BUFFER_SIZE           256
 #define APP_LUA_SERVICE_LINE_BUFFER_SIZE            4096
 
 
 typedef struct {
     const app_service_session_ctx_t* ctx;
     telnet_t* telnet;
-    struct linenoiseState ln_state;
-    char read_buffer[APP_LUA_SERVICE_READ_BUFFER_SIZE];
+    char input_buffer[APP_LUA_SERVICE_INPUT_BUFFER_SIZE];
     char line_buffer[APP_LUA_SERVICE_LINE_BUFFER_SIZE];
+    ned_t ned;
     app_event_id_t close_id;
 } app_lua_service_session_t;
 
@@ -68,7 +68,7 @@ static void schedule_close(app_lua_service_session_t* session) {
 
 
 static void handle_telnet_recv_event(app_lua_service_session_t* session, telnet_event_t* event) {
-
+    ned_feed(&session->ned, event->data.buffer, event->data.size);
 }
 
 
@@ -83,15 +83,22 @@ static void handle_telnet_send_event(app_lua_service_session_t* session, telnet_
 
         if ( n_written < 0 ) {
             app_log_warning("%s: %s:%u: Unable to write to client",
-
                             session->ctx->client_addr_str,
                             session->ctx->client_port);
-            // TODO: Log write failure
+
             schedule_close(session);
             return;
         }
 
         buffer_i += n_written;
+    }
+}
+
+
+static void handle_telnet_subnegotiation(app_lua_service_session_t* session, telnet_event_t* event) {
+    // only interested in terminal size changes
+    if (event->sub.telopt == TELNET_TELOPT_NAWS) {
+        ned_redraw(&session->ned);
     }
 }
 
@@ -102,6 +109,7 @@ static void telnet_callback(telnet_t* telnet, telnet_event_t* event, void* user_
     // unused arguments
     (void) telnet;
 
+    // decode event
     switch(event->type) {
     case TELNET_EV_DATA:
         handle_telnet_recv_event(session, event);
@@ -109,6 +117,10 @@ static void telnet_callback(telnet_t* telnet, telnet_event_t* event, void* user_
 
     case TELNET_EV_SEND:
         handle_telnet_send_event(session, event);
+        break;
+
+    case TELNET_EV_SUBNEGOTIATION:
+        handle_telnet_subnegotiation(session, event);
         break;
 
     case TELNET_EV_ERROR:
@@ -133,7 +145,7 @@ static void read_callback(app_stream_t* stream, app_result_t result, ssize_t n_t
             return;
         } else {
             // feed telnet context with received data
-            telnet_recv(session->telnet, session->read_buffer, n_transferred);
+            telnet_recv(session->telnet, session->input_buffer, n_transferred);
         }
     }
 
@@ -143,8 +155,14 @@ static void read_callback(app_stream_t* stream, app_result_t result, ssize_t n_t
 
 
 static void schedule_read(app_lua_service_session_t* session) {
-    app_stream_read(session->ctx->stream, session->read_buffer, APP_LUA_SERVICE_READ_BUFFER_SIZE,
+    app_stream_read(session->ctx->stream, session->input_buffer, APP_LUA_SERVICE_INPUT_BUFFER_SIZE,
             read_callback, session, NULL);
+}
+
+
+static int editor_write_callback(const void* buffer, int buffer_size, void* user_data) {
+    app_lua_service_session_t* session = user_data;
+    telnet_send_text(session->telnet, buffer, buffer_size);
 }
 
 
@@ -161,6 +179,9 @@ static void* session_create_callback(app_service_t* service, const app_service_s
     session->ctx = ctx;
     session->telnet = telnet_init(NULL, telnet_callback, 0, session);
     session->close_id = 0;
+
+    ned_init(&session->ned, session->line_buffer, APP_LUA_SERVICE_LINE_BUFFER_SIZE,
+            editor_write_callback, session);
 
     // negotiate telnet options
     telnet_negotiate(session->telnet, TELNET_WILL, TELNET_TELOPT_ECHO);     // Server WILL echo
@@ -190,6 +211,10 @@ static void session_destroy_callback(void* session_object, void* user_data) {
     // cancel any close events
     app_event_unregister_timer(session->close_id);
     session->close_id = 0;
+
+    // destroy telnet context
+    telnet_free(session->telnet);
+    session->telnet = NULL;
 
     // destroy session object
     app_heap_free(session_object);

@@ -96,6 +96,11 @@ app_event_id_t app_event_register_io(int fd, uint32_t events, app_event_io_callb
 
 
 void app_event_unregister_io(app_event_id_t id) {
+    // handle id zero case
+    if ( id == 0 ) {
+        return;
+    }
+
     // find IO record with given ID and mark it for garbage collecton
     for (size_t i = 0; i < m_io_record_count; ++i) {
         if ( m_io_records[i].id == id ) {
@@ -144,6 +149,11 @@ app_event_id_t app_event_register_timer(int64_t period, app_event_timer_callback
 
 
 void app_event_unregister_timer(app_event_id_t id) {
+    // handle id zero case
+    if ( id == 0 ) {
+        return;
+    }
+
     // find timer record with given ID and mark it for garbage collection
     for (size_t i = 0; i < m_timer_record_count; ++i) {
         if ( m_timer_records[i].id == id ) {

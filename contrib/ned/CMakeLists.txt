@@ -1,4 +1,4 @@
-# mline - Lightweight UTF-8 aware line editing library.
+# nanoedit - Lightweight UTF-8 aware line editing library.
 #
 # Copyright (C) 2025 Matthew T. Bucknall <matthew.bucknall@gmail.com>
 #
@@ -15,6 +15,6 @@
 # OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-add_library(mline STATIC mline.c)
+add_library(ned STATIC ned.c)
 
-target_include_directories(mline PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ned PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
