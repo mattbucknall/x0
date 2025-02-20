@@ -45,7 +45,9 @@ typedef struct {
 } app_lua_service_session_t;
 
 
-static void schedule_read(app_lua_service_session_t* session);
+static void schedule_read_input(app_lua_service_session_t* session);
+
+static void schedule_read_new_line(app_lua_service_session_t* session);
 
 
 static app_service_t* m_service;
@@ -63,6 +65,25 @@ static void schedule_close(app_lua_service_session_t* session) {
     // defer session close until next app_event_poll
     if ( session->close_id == 0 ) {
         session->close_id = app_event_register_timer(0, close_session_callback, session);
+    }
+}
+
+
+static void read_new_line_callback(ned_result_t result, const void* buffer, size_t buffer_size,
+        void* user_data) {
+    app_lua_service_session_t* session = user_data;
+
+    // close session if a read line error occurred
+    if ( result != NED_RESULT_OK ) {
+        schedule_close(session);
+        return;
+    }
+}
+
+
+static void schedule_read_new_line(app_lua_service_session_t* session) {
+    if ( ned_read_line(&session->ned, "> ", read_new_line_callback, session) != NED_RESULT_OK ) {
+        schedule_close(session);
     }
 }
 
@@ -150,11 +171,11 @@ static void read_callback(app_stream_t* stream, app_result_t result, ssize_t n_t
     }
 
     // continue receiving input
-    schedule_read(session);
+    schedule_read_input(session);
 }
 
 
-static void schedule_read(app_lua_service_session_t* session) {
+static void schedule_read_input(app_lua_service_session_t* session) {
     app_stream_read(session->ctx->stream, session->input_buffer, APP_LUA_SERVICE_INPUT_BUFFER_SIZE,
             read_callback, session, NULL);
 }
@@ -195,8 +216,11 @@ static void* session_create_callback(app_service_t* service, const app_service_s
     telnet_negotiate(session->telnet, TELNET_WILL, TELNET_TELOPT_SGA);      // Suppress Go-Ahead
     telnet_negotiate(session->telnet, TELNET_DO, TELNET_TELOPT_SGA);        // Ask client to suppress Go-Ahead
 
-    // wait for input
-    schedule_read(session);
+    // start feeding ned with input
+    schedule_read_input(session);
+
+    // read first line
+    schedule_read_new_line(session);
 
     return session;
 }

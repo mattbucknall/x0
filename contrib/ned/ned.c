@@ -87,7 +87,7 @@ const char* ned_result_to_string(ned_result_t result) {
 }
 
 
-static uint16_t estimate_terminal_columns(uint32_t code_point) {
+static size_t estimate_terminal_columns(uint32_t code_point) {
     // control characters
     if (code_point < 0x20 || (code_point >= 0x7F && code_point < 0xA0)) {
         return 0;
@@ -125,6 +125,21 @@ static uint16_t estimate_terminal_columns(uint32_t code_point) {
 }
 
 
+static size_t utf8_length(uint32_t code_point) {
+    if ( code_point <= 0x7F ) {
+        return 1;
+    } else if ( code_point <= 0x7FF ) {
+        return 2;
+    } else if ( code_point <= 0xFFFF ) {
+        return 3;
+    } else if ( code_point <= 0x10FFFF ) {
+        return 4;
+    } else {
+        return 0;
+    }
+}
+
+
 static void output_clear(ned_t* ctx) {
     ctx->output_buffer_idx = 0;
 }
@@ -150,28 +165,30 @@ static ned_result_t output_flush(ned_t* ctx) {
 }
 
 
-static ned_result_t output(ned_t* ctx, const void* buffer, size_t buffer_size) {
+static ned_result_t output_byte(ned_t* ctx, uint8_t byte) {
+    if ( ctx->output_buffer_idx >= NED_OUTPUT_BUFFER_SIZE ) {
+        ned_result_t result = output_flush(ctx);
+
+        if ( result != NED_RESULT_OK ) {
+            return result;
+        }
+    }
+
+    ctx->output_buffer[ctx->output_buffer_idx++] = byte;
+
+    return NED_RESULT_OK;
+}
+
+
+static ned_result_t output_buffer(ned_t* ctx, const void* buffer, size_t buffer_size) {
     const uint8_t* buffer_i = buffer;
     const uint8_t* buffer_e = buffer_i + buffer_size;
 
     while(buffer_i < buffer_e) {
-        size_t pending = buffer_e - buffer_i;
-        size_t space = NED_OUTPUT_BUFFER_SIZE - ctx->output_buffer_idx;
+        ned_result_t result = output_byte(ctx, *buffer_i++);
 
-        if ( pending > space ) {
-            pending = space;
-        }
-
-        memcpy(&ctx->output_buffer[ctx->output_buffer_idx], buffer_i, pending);
-        ctx->output_buffer_idx += pending;
-        buffer_i += pending;
-
-        if ( ctx->output_buffer_idx == NED_OUTPUT_BUFFER_SIZE ) {
-            ned_result_t result = output_flush(ctx);
-
-            if ( result != NED_RESULT_OK ) {
-                return result;
-            }
+        if ( result != NED_RESULT_OK ) {
+            return result;
         }
     }
 
@@ -186,7 +203,7 @@ static ned_result_t output_uint16(ned_t* ctx, uint16_t value) {
     // handle zero case
     if ( value == 0 ) {
         temp[0] = '0';
-        return output(ctx, temp, 1);
+        return output_buffer(ctx, temp, 1);
     }
 
     // convert digits to string (in reverse)
@@ -203,14 +220,14 @@ static ned_result_t output_uint16(ned_t* ctx, uint16_t value) {
     }
 
     // output value
-    return output(ctx, temp, i);
+    return output_buffer(ctx, temp, i);
 }
 
 
 static ned_result_t move_cursor(ned_t* ctx, char command, uint16_t n) {
     ned_result_t result;
 
-    result = output(ctx, "\x1B[", 2);
+    result = output_buffer(ctx, "\x1B[", 2);
 
     if ( result != NED_RESULT_OK ) {
         return result;
@@ -222,7 +239,7 @@ static ned_result_t move_cursor(ned_t* ctx, char command, uint16_t n) {
         return result;
     }
 
-    return output(ctx, &command, 1);
+    return output_buffer(ctx, &command, 1);
 }
 
 
@@ -247,27 +264,35 @@ static ned_result_t move_cursor_backward(ned_t* ctx, uint16_t n_columns) {
 
 
 static ned_result_t hide_cursor(ned_t* ctx) {
-    return output(ctx, "\x1B[?25l", 6);
+    return output_buffer(ctx, "\x1B[?25l", 6);
 }
 
 
 static ned_result_t show_cursor(ned_t* ctx) {
-    return output(ctx, "\x1B[?25h", 6);
+    return output_buffer(ctx, "\x1B[?25h", 6);
 }
 
 
 static ned_result_t erase_line_from_cursor(ned_t* ctx) {
-    return output(ctx, "\x1B[K", 3);
+    return output_buffer(ctx, "\x1B[K", 3);
 }
 
 
 static ned_result_t move_cursor_to_bottom_right(ned_t* ctx) {
-    return output(ctx, "\x1B[9999;9999H", 12);
+    return output_buffer(ctx, "\x1B[9999;9999H", 12);
 }
 
 
 static ned_result_t request_cursor_position(ned_t* ctx) {
-    return output(ctx, "\x1B[6n", 4);
+    ned_result_t result;
+
+    result = output_buffer(ctx, "\x1B[6n", 4);
+
+    if ( result == NED_RESULT_OK ) {
+        result = output_flush(ctx);
+    }
+
+    return result;
 }
 
 
@@ -277,6 +302,20 @@ static void lex_reset(ned_t* ctx) {
     ctx->lex_idx = 0;
     ctx->lex_arg[0] = 0;
     ctx->lex_arg[1] = 0;
+}
+
+
+static void finish_read(ned_t* ctx, ned_result_t result) {
+    NED_ASSERT(ctx->read_callback);
+
+    ned_read_callback_t callback = ctx->read_callback;
+    void* user_data = ctx->read_user_data;
+
+    ctx->read_callback = NULL;
+    ctx->read_user_data = NULL;
+
+    callback(result, ctx->input_buffer + ctx->input_buffer_start,
+            ctx->input_buffer_idx - ctx->input_buffer_start, user_data);
 }
 
 
@@ -543,7 +582,7 @@ ned_result_t ned_read_line(ned_t* ctx, const char* prompt, ned_read_callback_t r
     ctx->input_buffer_idx = prompt_len;
 
     // send initial cursor position request to begin editing session
-    result == request_cursor_position(ctx);
+    result = request_cursor_position(ctx);
 
     if ( result != NED_RESULT_OK ) {
         return result;
